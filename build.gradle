@@ -2,9 +2,11 @@
 
 buildscript {
     ext {
-        kotlin_version = '1.9.10'
+        kotlin_version = '2.2.21'
         compose_version =  '1.5.3'
         koin_version = '3.0.1'
+        // KSP's version prefix must match kotlin_version exactly.
+        ksp_version = '2.2.21-2.0.4'
     }
 
     repositories {

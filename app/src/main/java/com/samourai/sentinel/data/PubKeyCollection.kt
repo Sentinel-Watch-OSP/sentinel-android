@@ -19,6 +19,6 @@ data class PubKeyCollection(
     }
 
     fun getPubKey(pubKey: String): PubKeyModel? {
-        return this.pubs.find { it.pubKey.toLowerCase() == pubKey.toLowerCase() }
+        return this.pubs.find { it.pubKey.lowercase() == pubKey.lowercase() }
     }
 }

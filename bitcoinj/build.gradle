@@ -31,7 +31,7 @@ version = '010'
 description = 'bitcoinj'
 java.sourceCompatibility = JavaVersion.VERSION_1_8
 
-compileKotlin {
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
         jvmTarget = "1.8"
     }
@@ -56,3 +56,8 @@ publishing {
 }
 
 java.targetCompatibility = JavaVersion.VERSION_1_8
+
+tasks.withType(Test).configureEach {
+    // These legacy formatting fixtures use the JDK 8 locale data.
+    systemProperty 'java.locale.providers', 'COMPAT'
+}

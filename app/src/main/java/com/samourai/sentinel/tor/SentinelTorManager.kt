@@ -49,11 +49,11 @@ object SentinelTorManager {
     }
 
     fun stop() {
-        torKmpManager?.torOperationManager?.stopQuietly();
+        torKmpManager?.stop()
     }
 
     fun start() {
-        torKmpManager?.torOperationManager?.startQuietly();
+        torKmpManager?.start()
     }
 
     fun getProxy(): Proxy? {

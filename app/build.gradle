@@ -4,7 +4,7 @@ apply plugin: 'kotlin-kapt'
 apply plugin: 'kotlin-parcelize'
 
 android {
-    compileSdkVersion 34
+    compileSdkVersion 35
     flavorDimensions "versionCode"
     defaultConfig {
         applicationId "com.samourai.sentinel"
@@ -49,6 +49,7 @@ android {
         }
     }
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility = 1.8
         targetCompatibility = 1.8
     }
@@ -58,6 +59,7 @@ android {
     //Migrating from Kotlin synthetics to Jetpack view binding
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
     namespace 'com.samourai.sentinel'
     lint {
@@ -67,18 +69,19 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.3'
     api fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'androidx.preference:preference:1.2.1'
     def lifecycle_version = "2.2.0"
-    def coroutines_version = '1.5.2'
+    def coroutines_version = '1.10.2'
     def koin_version = '2.1.6'
     def topl_android_version = "2.1.2"
-    def room_version = "2.6.0"
+    def room_version = "2.7.2"
     def paging_version = "2.1.2"
 
-    // for tor dependency
-    def vTor = '4.8.6-0'
-    def vKmpTor = '1.4.4'
+    // for tor dependency (kmp-tor 2.x; resource 409.x = tor 0.4.9.x)
+    def kmpTorRuntime = '2.6.0'
+    def kmpTorResource = '409.5.0'
 
     configurations.all {
         exclude group: 'com.google.guava', module: 'listenablefuture'
@@ -137,7 +140,7 @@ dependencies {
     // optional - Kotlin Extensions and Coroutines support for Room
     implementation "androidx.room:room-ktx:$room_version"
     implementation "androidx.paging:paging-runtime-ktx:$paging_version" // For Kotlin use paging-runtime-ktx
-    implementation "androidx.room:room-rxjava2:room_version"
+    implementation "androidx.room:room-rxjava2:$room_version"
 
     implementation "io.insert-koin:koin-android:$koin_version"
     implementation "io.insert-koin:koin-androidx-viewmodel:$koin_version"
@@ -150,7 +153,9 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
 
     // tor dependency
-    implementation "io.matthewnelson.kotlin-components:kmp-tor:$vTor-$vKmpTor"
+    implementation "io.matthewnelson.kmp-tor:runtime:$kmpTorRuntime"
+    implementation "io.matthewnelson.kmp-tor:runtime-service:$kmpTorRuntime"
+    implementation "io.matthewnelson.kmp-tor:resource-exec-tor:$kmpTorResource"
     implementation (project(':hummingbird-android'))
     implementation ('com.sparrowwallet:hummingbird:1.6.6')
     implementation "com.mikepenz:itemanimators:1.1.0"
