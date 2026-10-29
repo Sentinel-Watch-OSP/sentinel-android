@@ -50,6 +50,33 @@ class AndroidUtil {
 
 }
 
+/**
+ * Result of a runtime permission request, safe against Android delivering an
+ * EMPTY `grantResults` array.
+ *
+ * The framework returns empty arrays when the permission dialog is cancelled
+ * (tap outside, configuration change, system interruption). Indexing
+ * `grantResults[0]` in that case throws ArrayIndexOutOfBoundsException, which
+ * was a reliable crash on every camera/notification permission path.
+ */
+enum class PermissionResult {
+    GRANTED,
+    DENIED,
+    /** Request was cancelled or interrupted; no user decision was made. */
+    CANCELLED
+}
+
+/**
+ * Safely interprets an `onRequestPermissionsResult` callback.
+ *
+ * Always use this instead of indexing `grantResults` directly.
+ */
+fun permissionResultOf(grantResults: IntArray): PermissionResult = when {
+    grantResults.isEmpty() -> PermissionResult.CANCELLED
+    grantResults[0] == PackageManager.PERMISSION_GRANTED -> PermissionResult.GRANTED
+    else -> PermissionResult.DENIED
+}
+
 fun logThreadInfo(location: String) {
     if (BuildConfig.DEBUG)
         Timber.i("Thread :$location: ${Thread.currentThread().name} ${Thread.currentThread().id}");

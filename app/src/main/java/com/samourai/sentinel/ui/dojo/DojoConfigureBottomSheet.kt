@@ -35,7 +35,7 @@ import com.samourai.sentinel.util.FormatsUtil
 import com.samourai.sentinel.util.apiScope
 import com.samourai.wallet.util.FormatsUtilGeneric
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -182,7 +182,8 @@ class DojoConfigureBottomSheet : GenericBottomSheet() {
                 }
 
                 override fun onFailure(call: Call, e: IOException) {
-                    if (e.message!!.contains("Unable to resolve host")) {
+                    // e.message can be null; `!!` here crashed inside the failure handler.
+                    if (e.message?.contains("Unable to resolve host") == true) {
                         Thread.sleep(5000)
                         if (SentinelTorManager.getProxy() != null)
                             setDojo()
@@ -392,7 +393,7 @@ class ScanFragment : Fragment() {
         view.findViewById<TextView>(R.id.scanInstructions).text = getString(R.string.dojo_scan_instruction)
         view.findViewById<TextView>(R.id.scanInstructions).textAlignment = TextView.TEXT_ALIGNMENT_CENTER
         mCodeScanner?.setQRDecodeListener {
-            GlobalScope.launch(Dispatchers.Main) {
+            lifecycleScope.launch {
                 mCodeScanner?.stopScanner()
                 onScan(it)
             }

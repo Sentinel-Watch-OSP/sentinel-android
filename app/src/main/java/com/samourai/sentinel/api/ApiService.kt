@@ -86,6 +86,78 @@ open class ApiService {
         }
     }
 
+    /**
+     * Synchronously obtains a fresh Dojo access token. Returns true on success.
+     *
+     * Dojo access tokens are valid for only 15 minutes, so this is the routine
+     * path for a long-running session, not an edge case.
+     *
+     * Tries `/auth/refresh` with the stored refresh token first, then falls back
+     * to `/auth/login` with the API key. Both are attempted because the refresh
+     * token has its own (longer) expiry, after which only the API key works.
+     *
+     * Deliberately blocking: [TokenAuthenticator] runs on an OkHttp thread and
+     * must have a valid token before it can return the retried request.
+     */
+    suspend fun refreshDojoAuth(): Boolean = withContext(Dispatchers.IO) {
+        // 1. Preferred: exchange the refresh token.
+        val refreshToken = prefsUtil.refreshToken
+        if (!refreshToken.isNullOrEmpty()) {
+            try {
+                val response = refreshDojoToken(refreshToken)
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null && body.contains("authorizations")) {
+                    dojoUtility.setAuthToken(body)
+                    Timber.i("Dojo token refreshed via /auth/refresh")
+                    return@withContext true
+                }
+                Timber.w("Dojo /auth/refresh rejected (code ${response.code}); trying API key")
+            } catch (e: Exception) {
+                Timber.w(e, "Dojo /auth/refresh failed; trying API key")
+            }
+        }
+
+        // 2. Fallback: full login with the API key.
+        val apiKey = dojoUtility.getApiKey()
+        if (apiKey.isNullOrEmpty()) {
+            Timber.e("Cannot re-authenticate with Dojo: no refresh token and no API key")
+            return@withContext false
+        }
+
+        try {
+            val response = authenticateDojo(apiKey)
+            val body = response.body?.string()
+            if (response.isSuccessful && body != null && body.contains("authorizations")) {
+                dojoUtility.setAuthToken(body)
+                Timber.i("Dojo token refreshed via /auth/login")
+                return@withContext true
+            }
+            Timber.e("Dojo /auth/login rejected (code ${response.code})")
+            return@withContext false
+        } catch (e: Exception) {
+            Timber.e(e, "Dojo /auth/login failed")
+            return@withContext false
+        }
+    }
+
+    /**
+     * POST /auth/refresh - exchanges a refresh token for a new access token.
+     *
+     * excludeAuthenticator avoids recursing into [TokenAuthenticator] if this
+     * call itself returns 401.
+     */
+    private suspend fun refreshDojoToken(refreshToken: String): Response {
+        buildClient(excludeApiKey = true, excludeAuthenticator = true)
+        val formBody = FormBody.Builder()
+            .add("rt", refreshToken)
+            .build()
+        val request = Request.Builder()
+            .post(formBody)
+            .url("${getAPIUrl()}/auth/refresh")
+            .build()
+        return client.newCall(request).await()
+    }
+
     suspend fun checkImportStatus(pubKey: String) = withContext(Dispatchers.IO) {
         buildClient(excludeAuthenticator = true)
         val request = Request.Builder()
@@ -279,6 +351,22 @@ open class ApiService {
     class InvalidResponse : Throwable(message = "Invalid response")
 
     companion object {
+
+        /**
+         * The current Dojo access token, read fresh from prefs.
+         *
+         * [buildClient] is static and has no injected PrefsUtil, so the token is
+         * resolved through Koin at call time. Returns null if prefs aren't
+         * available yet, in which case the caller falls back to the token passed
+         * into [buildClient].
+         */
+        private fun currentAuthToken(): String? = try {
+            val prefs: PrefsUtil by inject(PrefsUtil::class.java)
+            prefs.authorization
+        } catch (e: Exception) {
+            null
+        }
+
         fun buildClient(
             excludeApiKey: Boolean = false, url: String?,
             apiService: ApiService?,
@@ -290,7 +378,6 @@ open class ApiService {
                 builder.addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
             }
             builder.callTimeout(60, TimeUnit.SECONDS)
-            builder.readTimeout(60, TimeUnit.SECONDS)
             builder.readTimeout(90, TimeUnit.SECONDS)
             builder.connectTimeout(120, TimeUnit.SECONDS)
             if (url != null && apiService != null) {
@@ -298,32 +385,48 @@ open class ApiService {
                     builder.authenticator(TokenAuthenticator(apiService))
             }
             if (SentinelTorManager.getTorState().state == EnumTorState.ON) {
-                builder.callTimeout(90, TimeUnit.SECONDS)
-                builder.readTimeout(90, TimeUnit.SECONDS)
-                builder.readTimeout(90, TimeUnit.SECONDS)
-                builder.connectTimeout(120, TimeUnit.SECONDS)
+                // Over Tor, building a circuit to an onion service can take several
+                // minutes on a poor connection. A 90s callTimeout was aborting
+                // healthy requests, which surfaced to the user as a sync failure.
+                // callTimeout(0) disables the overall ceiling; the read/connect
+                // timeouts below still catch a genuinely dead connection.
+                builder.callTimeout(0, TimeUnit.MILLISECONDS)
+                builder.readTimeout(180, TimeUnit.SECONDS)
+                builder.writeTimeout(180, TimeUnit.SECONDS)
+                builder.connectTimeout(180, TimeUnit.SECONDS)
                 getHostNameVerifier(builder)
                 builder.proxy(SentinelTorManager.getProxy())
             }
 
             /**
-             * Intercept current request and add apiKey if needed
-             * for more please refer https://code.samourai.io/dojo/samourai-dojo/-/blob/master/doc/POST_auth_login.md#authentication
+             * Intercept current request and add the Dojo access token if needed.
+             * See https://code.samourai.io/dojo/samourai-dojo/-/blob/master/doc/POST_auth_login.md#authentication
+             *
+             * IMPORTANT: the token is resolved PER REQUEST via [currentAuthToken]
+             * rather than captured from the [authToken] parameter.
+             *
+             * Dojo access tokens expire after 15 minutes. The previous version
+             * baked the token into this closure when the client was built, so after
+             * a refresh every request still carried the old expired token and all
+             * balances silently stopped loading.
              */
             if (!excludeApiKey) {
                 try {
                     builder.addInterceptor(Interceptor { chain ->
                         val original = chain.request()
-                        val newBuilder = original.newBuilder()
-                        if (!authToken.isNullOrEmpty() && SentinelState.isDojoEnabled()) {
-                            newBuilder.url(
-                                original.url.newBuilder()
-                                    .addQueryParameter("at", authToken)
-                                    .build()
-                            )
+                        // Re-read on every call so a refreshed token takes effect.
+                        val token = currentAuthToken() ?: authToken
+                        if (!token.isNullOrEmpty() && SentinelState.isDojoEnabled()) {
+                            val url = original.url.newBuilder()
+                                // Drop any stale token before adding the fresh one,
+                                // otherwise a retried request carries both.
+                                .removeAllQueryParameters("at")
+                                .addQueryParameter("at", token)
+                                .build()
+                            chain.proceed(original.newBuilder().url(url).build())
+                        } else {
+                            chain.proceed(original)
                         }
-                        val request = newBuilder.build()
-                        chain.proceed(request)
                     })
                 } catch (_:Exception) {}
             }

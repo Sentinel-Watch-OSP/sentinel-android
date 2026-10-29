@@ -5,6 +5,8 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 
+import timber.log.Timber;
+
 public class OnSwipeTouchListener implements View.OnTouchListener {
 
     private final GestureDetector gestureDetector;
@@ -53,7 +55,7 @@ public class OnSwipeTouchListener implements View.OnTouchListener {
                     result = true;
                 }
             } catch (Exception exception) {
-                exception.printStackTrace();
+                Timber.e(exception);
             }
             return result;
         }

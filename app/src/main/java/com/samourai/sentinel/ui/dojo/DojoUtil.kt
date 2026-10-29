@@ -37,6 +37,8 @@ class DojoUtility {
         val payload = fromJSON<DojoPairing>(pairing)
                 ?: throw  Exception("Invalid payload")
         this.dojoPayload = payload
+        // See setDojoPayload: apiKey must track dojoPayload.
+        this.apiKey = payload.pairing?.apikey
         prefsUtil.apiEndPoint = this.dojoPayload!!.pairing?.url
         prefsUtil.apiEndPointTor = this.dojoPayload!!.pairing?.url
         writePayload(dojoPayload!!);
@@ -93,21 +95,49 @@ class DojoUtility {
                 dojoStore.file.delete()
         }
         dojoPayload = null
+        // Clear the credentials too, so a later re-pair cannot accidentally
+        // authenticate against the new Dojo with the old key.
+        apiKey = null
+        isAuthenticated = false
+        prefsUtil.authorization = ""
+        prefsUtil.refreshToken = ""
         prefsUtil.apiEndPointTor = null
         prefsUtil.apiEndPoint = null
     }
 
+    /**
+     * Stores the tokens from an /auth/login or /auth/refresh response.
+     *
+     * Only access_token is guaranteed to be present: /auth/login returns both
+     * tokens, but /auth/refresh returns just a new access_token and does not
+     * rotate the refresh token. getString() throws on a missing key, so reading
+     * refresh_token unconditionally made every /auth/refresh response fail.
+     * The existing refresh token is preserved when the response omits it.
+     */
     fun setAuthToken(body: String) {
         val payload = JSONObject(body).getJSONObject("authorizations")
-        val authorization = payload.getString("access_token")
-        val refreshToken = payload.getString("refresh_token")
-        prefsUtil.authorization = authorization
-        prefsUtil.refreshToken = refreshToken
+        prefsUtil.authorization = payload.getString("access_token")
+        val refreshToken = payload.optString("refresh_token", "")
+        if (refreshToken.isNotEmpty()) {
+            prefsUtil.refreshToken = refreshToken
+        }
         isAuthenticated = true
     }
 
     fun getApiKey(): String? {
         return apiKey;
+    }
+
+    /**
+     * The pairing details for the currently connected Dojo, or null if none.
+     *
+     * Read-only accessor for display purposes.
+     *
+     * NOTE: [Pairing.apikey] grants access to the node - treat any UI that shows
+     * it accordingly (see DojoCredentialsBottomSheet, which sets FLAG_SECURE).
+     */
+    fun getPairing(): Pairing? {
+        return dojoPayload?.pairing
     }
 
     fun read() {
@@ -136,9 +166,16 @@ class DojoUtility {
         val payload = fromJSON<DojoPairing>(payloadString)
             ?: throw  Exception("Invalid payload")
         this.dojoPayload = payload
+        // Must be kept in sync with dojoPayload. apiKey is the only credential
+        // that can re-authenticate once the refresh token has also expired; if
+        // it is left null here, token refresh silently no-ops and balances stop
+        // loading 15 minutes after pairing.
+        this.apiKey = payload.pairing?.apikey
     }
 
     fun import(dojoPairing: JSONObject) {
         dojoPayload = fromJSON(dojoPairing.toString())
+        // See setDojoPayload: apiKey must track dojoPayload.
+        apiKey = dojoPayload?.pairing?.apikey
     }
 }

@@ -185,6 +185,12 @@
     <string name="powering_sentinel">Connecting to your own Dojo full node offers the best level of privacy and independence when interfacing with the Bitcoin network.</string>
     <string name="disable">Disable</string>
     <string name="disable_dojo">Change/Disable</string>
+    <!--
+      Opens the Dojo pairing credentials sheet. Marked translatable="false" for now
+      to match the project's existing pattern of English fallbacks for newer
+      strings; drop the attribute once translations are supplied.
+    -->
+    <string name="dojo_pairing_details" translatable="false">Details</string>
     <string name="Enabled">Enabled</string>
     <string name="loading">loading…</string>
     <string name="tor_initializing">Tor initializing</string>

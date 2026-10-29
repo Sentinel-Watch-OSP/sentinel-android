@@ -97,26 +97,90 @@
             android:id="@+id/collectionRecyclerView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginTop="8dp" />
+            android:layout_marginTop="8dp"
+            android:clipToPadding="false"
+            android:paddingBottom="144dp" />
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/fab"
-        style="@style/Widget.MaterialComponents.ExtendedFloatingActionButton.Icon"
-        android:layout_width="wrap_content"
+    <!--
+      Bottom stack: the FAB sits ABOVE the sync banner so the two can never
+      overlap. Both were previously anchored to the bottom of the
+      CoordinatorLayout independently, which made the "New" button cover the
+      banner text and its Retry button.
+    -->
+    <LinearLayout
+        android:id="@+id/bottomStack"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
-        android:layout_gravity="bottom|center"
-        android:layout_margin="@dimen/fab_margin"
-        android:elevation="0dp"
-        android:paddingHorizontal="54dp"
-        android:text="New"
-        android:textColor="@color/white"
-        app:backgroundTint="@null"
-        app:elevation="12dp"
-        app:iconTint="@color/white"
-        app:shapeAppearance="@style/ShapeAppearance.MaterialComponents.MediumComponent" />
+        android:layout_gravity="bottom"
+        android:orientation="vertical">
+
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/fab"
+            style="@style/Widget.MaterialComponents.ExtendedFloatingActionButton.Icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_margin="@dimen/fab_margin"
+            android:elevation="0dp"
+            android:paddingHorizontal="54dp"
+            android:text="New"
+            android:textColor="@color/white"
+            app:backgroundTint="@null"
+            app:elevation="12dp"
+            app:iconTint="@color/white"
+            app:shapeAppearance="@style/ShapeAppearance.MaterialComponents.MediumComponent" />
+
+        <!--
+          Sync status banner. Replaces the indefinite SwipeRefreshLayout spinner as
+          the primary loading affordance so the user always gets a reason and a way
+          out.
+        -->
+        <LinearLayout
+            android:id="@+id/syncStatusBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#252525"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ProgressBar
+                android:id="@+id/syncStatusProgress"
+                style="?android:attr/progressBarStyleSmall"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginEnd="12dp"
+                android:indeterminateTint="@color/warning_yellow" />
+
+            <TextView
+                android:id="@+id/syncStatusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#DDDDDD"
+                android:textSize="13sp"
+                tools:text="Connecting via Tor…" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/syncRetryButton"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="Retry"
+                android:textColor="@color/green_ui_2"
+                android:textSize="13sp"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

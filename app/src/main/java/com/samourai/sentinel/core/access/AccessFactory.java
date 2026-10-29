@@ -24,6 +24,7 @@ public class AccessFactory {
 
     private static boolean isLoggedIn = false;
     private static String _pin = "";
+    private static boolean isPinProtected = false;
 
     private static AccessFactory instance = null;
 
@@ -54,9 +55,31 @@ public class AccessFactory {
         return _pin;
     }
 
-    public void setPin(@NotNull String pin) {
+    /**
+     * Note: {@code pin} may be null, which clears the in-memory PIN. Callers
+     * such as the "clear wallet" flow rely on this.
+     */
+    public void setPin(String pin) {
         _pin = pin;
+        if (pin != null && !pin.isEmpty()) {
+            isPinProtected = true;
+        }
         updatePin();
+    }
+
+    /**
+     * True once a PIN has been supplied for this process.
+     *
+     * Used to prevent writing a payload in plaintext after {@link #setPin(String)}
+     * has been passed null, which would produce a file that can never be
+     * decrypted on the next launch.
+     */
+    public boolean isPinProtected() {
+        return isPinProtected;
+    }
+
+    public void setPinProtected(boolean protectedFlag) {
+        isPinProtected = protectedFlag;
     }
 
 

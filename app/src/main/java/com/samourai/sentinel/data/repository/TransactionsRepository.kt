@@ -1,7 +1,6 @@
 package com.samourai.sentinel.data.repository
 
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import com.samourai.sentinel.api.ApiService
 import com.samourai.sentinel.api.ApiService.ApiNotConfigured
 import com.samourai.sentinel.core.SentinelState
@@ -47,7 +46,9 @@ class TransactionsRepository {
     private val apiService: ApiService by inject(ApiService::class.java)
     private val collectionRepository: CollectionRepository by inject(CollectionRepository::class.java)
     private val feeRepository: FeeRepository by inject(FeeRepository::class.java)
-    val loading: MutableLiveData<MutableList<Boolean>> = MutableLiveData(mutableListOf())
+    // NOTE: the old `loading: MutableLiveData<MutableList<Boolean>>` counter was
+    // removed. Callers now observe HomeViewModel.syncState(), which cannot leak a
+    // permanent "loading" entry. See com.samourai.sentinel.core.SyncState.
 
     //track currently loading collection
     var loadingCollectionId = ""
@@ -60,10 +61,13 @@ class TransactionsRepository {
      *  Api call for wallet api
      *  using coroutines concurrent execution
      */
-    suspend fun fetchFromServer(collectionId: String) {
+    // Wrapped in withContext(Dispatchers.IO) so Room is never touched on the main
+    // thread regardless of which dispatcher the caller used.
+    suspend fun fetchFromServer(collectionId: String): Unit = withContext(Dispatchers.IO) {
         try {
             logThreadInfo("fetchFromServer")
-            val collection = collectionRepository.findById(collectionId) ?: return
+            val collection = collectionRepository.findById(collectionId)
+                ?: return@withContext
             var newTransactions: ArrayList<Tx> = arrayListOf();
             val utxos: ArrayList<Utxo> = arrayListOf();
             val jobs: ArrayList<Deferred<Response>> = arrayListOf()
@@ -72,9 +76,6 @@ class TransactionsRepository {
                     apiService.getWallet(it.pubKey)
                 }
                 jobs.add(item);
-            }
-            apiScope.launch(Dispatchers.Main) {
-                loading.value = loading.value?.apply { add(true) }
             }
 
             jobs.forEach { job ->
@@ -141,7 +142,7 @@ class TransactionsRepository {
                         collection.lastRefreshed = System.currentTimeMillis()
                         val item =
                             collectionRepository.pubKeyCollections.find { collection -> collection.id == collectionId }
-                                ?: return
+                                ?: return@withContext
                         collectionRepository.update(
                             collection,
                             collectionRepository.pubKeyCollections.indexOf(item)
@@ -151,15 +152,11 @@ class TransactionsRepository {
                     throw  e
                 }
             }
-            apiScope.launch(Dispatchers.Main) {
-                loading.value = loading.value?.apply { remove(true) }
-            }
-
             withContext(Dispatchers.IO) {
                 utxoDao.deleteByCollection(collectionId)
                 txDao.deleteByCollectionID(collectionId)
             }
-            newTransactions = keepTransactionWihVariousPubkeys(newTransactions)
+            newTransactions = keepTransactionWithVariousPubkeys(newTransactions)
             saveTx(newTransactions, collectionId)
             saveUtxos(utxos, collectionId)
         } catch (e: Exception) {
@@ -167,7 +164,7 @@ class TransactionsRepository {
         }
     }
 
-    private fun keepTransactionWihVariousPubkeys(transactions: ArrayList<Tx>): ArrayList<Tx> {
+    private fun keepTransactionWithVariousPubkeys(transactions: ArrayList<Tx>): ArrayList<Tx> {
         val groupedTransactions = transactions.groupBy { it.hash }
         val hashes: HashMap<String, Int> = hashMapOf()
         groupedTransactions.forEach {
@@ -183,10 +180,6 @@ class TransactionsRepository {
             }
         }
         return transactions
-    }
-
-    fun loadingState(): LiveData<MutableList<Boolean>> {
-        return loading
     }
 
     private fun saveTx(transactions: ArrayList<Tx>, collectionId: String) = apiScope.launch {
@@ -240,9 +233,11 @@ class TransactionsRepository {
         return this.fetchFromServer(collection.id)
     }
 
-    suspend fun fetchUTXOS(collectionId: String) {
+    // Also forced onto Dispatchers.IO for Room safety.
+    suspend fun fetchUTXOS(collectionId: String): Unit = withContext(Dispatchers.IO) {
         try {
-            val collection = collectionRepository.findById(collectionId) ?: return
+            val collection = collectionRepository.findById(collectionId)
+                ?: return@withContext
             val utxos: ArrayList<Utxo> = arrayListOf();
             val jobs: ArrayList<Deferred<Response>> = arrayListOf()
             collection.pubs.forEach {
@@ -283,8 +278,9 @@ class TransactionsRepository {
             }
 
             saveUtxos(utxos, collectionId)
-        } catch (_: Exception) {
         } catch (e: ApiNotConfigured) {
+            Timber.e(e)
+        } catch (e: Exception) {
             Timber.e(e)
         }
     }

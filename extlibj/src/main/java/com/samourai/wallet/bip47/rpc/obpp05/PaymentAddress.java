@@ -8,6 +8,9 @@ import org.bouncycastle.crypto.ec.CustomNamedCurves;
 import org.bouncycastle.crypto.params.ECDomainParameters;
 import org.bouncycastle.math.ec.ECPoint;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -20,6 +23,8 @@ import java.security.spec.InvalidKeySpecException;
 import com.samourai.wallet.util.Util;
 
 public class PaymentAddress {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentAddress.class);
 
     private PaymentCode paymentCode = null;
     private int index = 0;
@@ -174,7 +179,7 @@ public class PaymentAddress {
         // check that 's' is on the secp256k1 curve
         //
         if(!isSecp256k1(s))    {
-            System.out.println("Secret point not on secp256k1 curve");
+            log.warn("Secret point not on secp256k1 curve");
             return null;
         }
 

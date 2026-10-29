@@ -3,7 +3,8 @@ package com.samourai.sentinel.util;
 import android.content.Context;
 import android.os.Build;
 import android.telephony.TelephonyManager;
-//import android.util.Log;
+
+import timber.log.Timber;
 
 import org.bouncycastle.crypto.digests.RIPEMD160Digest;
 import org.bouncycastle.util.encoders.Hex;
@@ -54,7 +55,7 @@ public class FootprintUtil {
                 return new String(Hex.encode(out));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            Timber.e(e);
         }
 
         return strFootprint;

@@ -20,6 +20,8 @@ import com.google.android.material.shape.ShapeAppearanceModel
 import com.samourai.sentinel.R
 import com.samourai.sentinel.api.APIConfig
 import com.samourai.sentinel.core.SentinelState
+import com.samourai.sentinel.core.SyncState
+import com.samourai.sentinel.ui.views.ConnectionIndicatorController
 import com.samourai.sentinel.databinding.ActivityHomeBinding
 import com.samourai.sentinel.service.WebSocketHandler
 import com.samourai.sentinel.service.WebSocketService
@@ -34,6 +36,8 @@ import com.samourai.sentinel.ui.settings.NetworkActivity
 import com.samourai.sentinel.ui.settings.SettingsActivity
 import com.samourai.sentinel.ui.tools.ToolsActivity
 import com.samourai.sentinel.ui.utils.AndroidUtil
+import com.samourai.sentinel.ui.utils.PermissionResult
+import com.samourai.sentinel.ui.utils.permissionResultOf
 import com.samourai.sentinel.ui.utils.PrefsUtil
 import com.samourai.sentinel.ui.utils.RecyclerViewItemDividerDecorator
 import com.samourai.sentinel.ui.utils.SlideInItemAnimator
@@ -46,9 +50,8 @@ import com.samourai.sentinel.util.TimeOutUtil
 import com.samourai.sentinel.util.UtxoMetaUtil
 import com.samourai.sentinel.widgets.popUpMenu.popupMenu
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.java.KoinJavaComponent.inject
 
 
@@ -62,6 +65,7 @@ class HomeActivity : SentinelActivity() {
     private lateinit var binding: ActivityHomeBinding
     private val model: HomeViewModel by viewModels()
     private var balance = -1L
+    private var indicatorController: ConnectionIndicatorController? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -112,7 +116,7 @@ class HomeActivity : SentinelActivity() {
             balance = it
         }
 
-        binding.exchangeRateTxt.visibility = if (prefsUtil.fiatDisabled!!) View.INVISIBLE else View.VISIBLE
+        binding.exchangeRateTxt.visibility = if (prefsUtil.fiatDisabled == true) View.INVISIBLE else View.VISIBLE
 
         model.getFiatBalance().observe(this, { updateFiat(it) })
 
@@ -131,23 +135,30 @@ class HomeActivity : SentinelActivity() {
             }
         }
 
-        model.loading().observe(this) {
-            binding.swipeRefreshCollection.isRefreshing = it.contains(true) || it.isNotEmpty()
-            if (it.contains(true) || model.repository.pubKeyCollections.isNotEmpty()) {
-                collectionsAdapter.update(model.repository.pubKeyCollections)
+        // Drive all loading UI from the explicit SyncState.
+        model.syncState().observe(this) { renderSyncState(it) }
+
+        // NOTE: the toolbar indicator is wired up in setNetWorkMenu(), once the
+        // menu's action view actually exists.
+
+        // A corrupt payload must never look like "you have no wallets".
+        model.payloadReadFailure().observe(this) { failure ->
+            if (failure != null) {
                 binding.welcomeMessage.visibility = View.GONE
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("Could not load collections")
+                    .setMessage(
+                        "Your saved collections could not be read. They have NOT been " +
+                            "deleted. Restart the app and re-enter your PIN. If this " +
+                            "persists, restore from your backup."
+                    )
+                    .setPositiveButton(resources.getString(R.string.ok), null)
+                    .show()
             }
         }
-        model.getErrorMessage().observe(this) {
-            if (it != "null" &&  SentinelTorManager.getTorState().state != EnumTorState.STARTING) {
-                if (!it.lowercase().startsWith("unable to resolve host")
-                    && !it.lowercase().contains("standalonecoroutine was cancelled")) {
-                    this@HomeActivity.showFloatingSnackBar(
-                        binding.fab,
-                        text = "No data connection available. Please enable data"
-                    )
-                }
-            }
+
+        binding.syncRetryButton.setOnClickListener {
+            requestRefresh()
         }
 
         if (intent != null) {
@@ -157,24 +168,10 @@ class HomeActivity : SentinelActivity() {
         }
 
         binding.swipeRefreshCollection.setOnRefreshListener {
+            // The banner is now the source of loading feedback; the pull spinner
+            // only acknowledges the gesture.
             binding.swipeRefreshCollection.isRefreshing = false
-            if (SentinelState.isTorRequired()) {
-                if (SentinelTorManager.getTorState().state == EnumTorState.STARTING) {
-                    this.showFloatingSnackBar(binding.fab, anchorView = binding.fab.id,
-                            text = "Tor is bootstrapping! please wait and try again")
-                }
-                if (SentinelTorManager.getTorState().state == EnumTorState.OFF) {
-                    this.showFloatingSnackBar(binding.fab,
-                            text="Please wait while Tor is turning on")
-                    SentinelTorManager.start()
-                    prefsUtil.enableTor = true
-                }
-                if (SentinelTorManager.getTorState().state == EnumTorState.ON) {
-                    model.fetchBalance()
-                }
-            } else {
-                model.fetchBalance()
-            }
+            requestRefresh()
         }
 
         fetch(model)
@@ -186,6 +183,92 @@ class HomeActivity : SentinelActivity() {
             })
         } else {
             WebSocketService.start(applicationContext)
+        }
+    }
+
+    /**
+     * Renders the sync banner from the explicit [SyncState].
+     *
+     * Cached collections stay visible at all times; this only annotates them.
+     */
+    private fun renderSyncState(state: SyncState) {
+        val banner = binding.syncStatusBanner
+        val text = binding.syncStatusText
+        val progress = binding.syncStatusProgress
+        val retry = binding.syncRetryButton
+
+        when (state) {
+            is SyncState.Idle -> {
+                banner.visibility = View.GONE
+            }
+
+            is SyncState.WaitingForTor -> {
+                banner.visibility = View.VISIBLE
+                progress.visibility = View.VISIBLE
+                retry.visibility = View.GONE
+                text.text = if (state.progress in 1..99) {
+                    "Connecting via Tor\u2026 ${state.progress}%"
+                } else {
+                    "Connecting via Tor\u2026"
+                }
+            }
+
+            is SyncState.Syncing -> {
+                banner.visibility = View.VISIBLE
+                progress.visibility = View.VISIBLE
+                retry.visibility = View.GONE
+                val base = if (state.total > 1) {
+                    "Syncing ${state.done} of ${state.total} collections\u2026"
+                } else {
+                    "Syncing\u2026"
+                }
+                // Explain the delay rather than failing: Tor can be genuinely slow.
+                text.text = if (state.slow) {
+                    "$base still working over Tor, this can take a while"
+                } else {
+                    base
+                }
+            }
+
+            is SyncState.Success -> {
+                progress.visibility = View.GONE
+                retry.visibility = View.GONE
+                text.text = "Updated just now"
+                banner.visibility = View.VISIBLE
+                // Briefly confirm, then get out of the way.
+                banner.postDelayed({
+                    if (model.syncState().value is SyncState.Success) {
+                        banner.visibility = View.GONE
+                    }
+                }, 2000)
+            }
+
+            is SyncState.Failed -> {
+                banner.visibility = View.VISIBLE
+                progress.visibility = View.GONE
+                text.text = state.reason
+                retry.visibility = if (state.retryable) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    /**
+     * Single entry point for user-initiated refresh, from either the pull gesture
+     * or the banner's Retry button.
+     */
+    private fun requestRefresh() {
+        if (SentinelState.isTorRequired()) {
+            when (SentinelTorManager.getTorState().state) {
+                EnumTorState.ON -> model.fetchBalance()
+                EnumTorState.OFF -> {
+                    SentinelTorManager.start()
+                    prefsUtil.enableTor = true
+                }
+                // STARTING / STOPPING: the banner already communicates progress.
+                else -> Unit
+            }
+        } else {
+            model.fetchBalance()
         }
     }
 
@@ -250,10 +333,8 @@ class HomeActivity : SentinelActivity() {
             } else {
                 SentinelTorManager.getTorStateLiveData().observe(this, {
                     if (it.state == EnumTorState.ON) {
-                        GlobalScope.launch {
-                            withContext(Dispatchers.Main) {
-                                model.fetchBalance()
-                            }
+                        lifecycleScope.launch {
+                            model.fetchBalance()
                         }
                     }
                 })
@@ -270,11 +351,11 @@ class HomeActivity : SentinelActivity() {
         if (balance != -1L)
             updateBalance(balance)
 
-        binding.exchangeRateTxt.visibility = if (prefsUtil.fiatDisabled!!) View.INVISIBLE else View.VISIBLE
+        binding.exchangeRateTxt.visibility = if (prefsUtil.fiatDisabled == true) View.INVISIBLE else View.VISIBLE
     }
 
     private fun setUp() {
-        if (prefsUtil.firstRun!! && AppUtil.getInstance(applicationContext).isSideLoaded) {
+        if (prefsUtil.firstRun == true && AppUtil.getInstance(applicationContext).isSideLoaded) {
             this.confirm(label = "Choose network",
                     positiveText = "Mainnet",
                     negativeText = "Testnet",
@@ -324,7 +405,7 @@ class HomeActivity : SentinelActivity() {
                                     }
                                 }
                             )
-                            if (prefsUtil.testnet!!) {
+                            if (prefsUtil.testnet == true) {
                                 prefsUtil.apiEndPoint = APIConfig.SAMOURAI_API_TESTNET
                                 prefsUtil.apiEndPointTor = APIConfig.SAMOURAI_API_TOR_TESTNET
                             } else {
@@ -365,7 +446,7 @@ class HomeActivity : SentinelActivity() {
     }
 
     private fun showPubKeyBottomSheet() {
-        val bottomSheetFragment = AddNewPubKeyBottomSheet(secure = prefsUtil.displaySecure!!)
+        val bottomSheetFragment = AddNewPubKeyBottomSheet(secure = prefsUtil.displaySecure == true)
         bottomSheetFragment.show(supportFragmentManager, bottomSheetFragment.tag)
     }
 
@@ -399,24 +480,28 @@ class HomeActivity : SentinelActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == Companion.CAMERA_PERMISSION && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            if (connectingDojo) {
-                showDojoSetUpBottomSheet()
-                return
+        // NOTE: grantResults can be EMPTY when the dialog is cancelled - never index it directly.
+        when (requestCode) {
+            Companion.CAMERA_PERMISSION -> {
+                when (permissionResultOf(grantResults)) {
+                    PermissionResult.GRANTED -> Unit
+                    PermissionResult.DENIED ->
+                        Toast.makeText(this, "Permission denied", Toast.LENGTH_LONG).show()
+                    // User dismissed the dialog; take no action at all.
+                    PermissionResult.CANCELLED -> return
+                }
+                if (connectingDojo) showDojoSetUpBottomSheet() else showPubKeyBottomSheet()
             }
-            showPubKeyBottomSheet()
 
-        } else if (requestCode == Companion.CAMERA_PERMISSION && grantResults[0] == PackageManager.PERMISSION_DENIED) {
-            Toast.makeText(this, "Permission denied", Toast.LENGTH_LONG).show()
-            if (connectingDojo) {
-                showDojoSetUpBottomSheet()
-                return
+            Companion.NOTIF_PERMISSION -> {
+                when (permissionResultOf(grantResults)) {
+                    PermissionResult.GRANTED ->
+                        Toast.makeText(this, "Notification permissions granted.", Toast.LENGTH_SHORT).show()
+                    PermissionResult.DENIED ->
+                        Toast.makeText(this, "Notification permissions denied.", Toast.LENGTH_SHORT).show()
+                    PermissionResult.CANCELLED -> Unit
+                }
             }
-            showPubKeyBottomSheet()
-        } else if (requestCode == Companion.NOTIF_PERMISSION && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Notification permissions granted.", Toast.LENGTH_SHORT).show()
-        } else if (requestCode == Companion.NOTIF_PERMISSION && grantResults[0] == PackageManager.PERMISSION_DENIED) {
-            Toast.makeText(this, "Notification permissions denied.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -445,29 +530,26 @@ class HomeActivity : SentinelActivity() {
 
     private fun setNetWorkMenu(menu: Menu) {
         val alertMenuItem: MenuItem = menu.findItem(R.id.activity_home_menu_network)
-        val rootView = alertMenuItem.actionView
-        val statusCircle = rootView?.findViewById<View>(R.id.home_menu_network_shape) as FrameLayout
-        val shape = ContextCompat.getDrawable(applicationContext, R.drawable.circle_shape)
-        shape?.setTint(0)
-        statusCircle.background = shape
-        statusCircle.visibility = View.VISIBLE
-        SentinelTorManager.getTorStateLiveData().observe(this, Observer {
-            if (it.state == EnumTorState.ON) {
-                shape?.setTint(0)
-            }
-            if (it.state == EnumTorState.OFF) {
-                shape?.setTint(0)
-            }
-            if (it.state == EnumTorState.STARTING) {
-                shape?.setTint(ContextCompat.getColor(applicationContext, R.color.warning_yellow))
-            }
-            statusCircle.background = shape
-            statusCircle.visibility = View.VISIBLE
-        })
+        val rootView = alertMenuItem.actionView ?: return
+        val statusCircle = rootView.findViewById<View>(R.id.home_menu_network_shape) as FrameLayout
+
+        // Traffic-light: green = Tor connected AND synced, flashing yellow =
+        // connecting/syncing, red = failed. Driven by the ViewModel so Tor state
+        // and sync state are considered together.
+        indicatorController?.dispose()
+        indicatorController = ConnectionIndicatorController(statusCircle).also { controller ->
+            model.connectionIndicator().observe(this) { controller.render(it) }
+        }
 
         rootView.setOnClickListener {
             startActivity(Intent(this, NetworkActivity::class.java))
         }
+    }
+
+    override fun onDestroy() {
+        indicatorController?.dispose()
+        indicatorController = null
+        super.onDestroy()
     }
 
     fun connectSocket() {

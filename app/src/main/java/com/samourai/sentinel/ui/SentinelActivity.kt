@@ -53,12 +53,19 @@ open class SentinelActivity : AppCompatActivity(), SwipeBackActivityBase {
 
     override fun onResume() {
         super.onResume()
-        if (prefsUtil.pinHash!!.isNotBlank() && accessFactory.isTimedOut) {
+        // Prefs are nullable by design (GenericPrefDelegate<T?>); `!!` here crashed
+        // on a fresh install and after clearAll().
+        if (prefsUtil.pinHash?.isNotBlank() == true && accessFactory.isTimedOut) {
             startActivity(Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
             })
+            // Finish and bail out: continuing to resume behind the lock screen
+            // leaves this activity in a half-initialised state, and anything that
+            // subsequently touches its views throws.
+            finish()
+            return
         }
-        if (prefsUtil.displaySecure!!) {
+        if (prefsUtil.displaySecure == true) {
             window.setFlags(
                 WindowManager.LayoutParams.FLAG_SECURE,
                 WindowManager.LayoutParams.FLAG_SECURE

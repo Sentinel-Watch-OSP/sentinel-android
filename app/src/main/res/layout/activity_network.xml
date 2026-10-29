@@ -274,6 +274,19 @@
                         android:text="Disabled" />
                 </LinearLayout>
 
+                <!-- Only visible while a Dojo is actually paired. -->
+                <Button
+                    android:id="@+id/networking_dojo_details_btn"
+                    style="@style/Base.Widget.AppCompat.Button.Borderless"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight=".5"
+                    android:text="@string/dojo_pairing_details"
+                    android:textColor="#6eb8c5"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+
                 <Button
                     android:id="@+id/networking_dojo_btn"
                     style="@style/Base.Widget.AppCompat.Button.Borderless"

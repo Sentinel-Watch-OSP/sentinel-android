@@ -45,7 +45,7 @@ import com.sparrowwallet.hummingbird.registry.CryptoAccount
 import com.sparrowwallet.hummingbird.registry.PathComponent
 import com.sparrowwallet.hummingbird.registry.RegistryType
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.bitcoinj.crypto.ChildNumber
@@ -281,7 +281,7 @@ class ScanPubKeyFragment : Fragment() {
 
         val clipboard = context?.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         mCodeScanner.setQRDecodeListener {
-            GlobalScope.launch(Dispatchers.Main) {
+            lifecycleScope.launch {
                 mCodeScanner.stopScanner()
                 onScan(it)
             }

@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.FragmentTransaction
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.samourai.sentinel.R
 import com.samourai.sentinel.core.access.AccessFactory
@@ -13,6 +14,7 @@ import com.samourai.sentinel.ui.dojo.DojoUtility
 import com.samourai.sentinel.ui.home.HomeActivity
 import com.samourai.sentinel.ui.utils.PrefsUtil
 import com.samourai.sentinel.ui.views.LockScreenDialog
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.*
 import org.koin.java.KoinJavaComponent.inject
 import timber.log.Timber
@@ -44,12 +46,16 @@ class MainActivity : AppCompatActivity() {
             lockScreenDialog.setOnPinEntered {
                 if (AccessFactory.getInstance(this).validateHash(it, pinHash)) {
                     accessFactory.pin = it
-                    runBlocking {
+                    // Mark the process as PIN-protected so payload writes can never
+                    // silently fall back to plaintext.
+                    AccessFactory.getInstance(this).setPinProtected(true)
+                    // Previously runBlocking{} here froze the UI thread (and could ANR)
+                    // right at the point the user is waiting to get in.
+                    lifecycleScope.launch {
                         delay(100)
                         dojoUtil.read()
                         navigate()
                     }
-
                 } else {
                     lockScreenDialog.showError()
                 }

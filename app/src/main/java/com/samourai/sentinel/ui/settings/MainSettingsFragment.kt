@@ -273,10 +273,14 @@ class MainSettingsFragment : PreferenceFragmentCompat() {
                                 withContext(Dispatchers.IO) {
                                     utxoDao.delete()
                                     txDao.delete()
-                                    collectionRepository.reset()
                                     dojoUtility.clearDojo()
                                     prefsUtil.clearAll()
+                                    // Clear the PIN state BEFORE reset() so the
+                                    // resulting empty payload is written in the
+                                    // same (plaintext) form it will be read back in.
                                     AccessFactory.getInstance(null).pin = null
+                                    AccessFactory.getInstance(null).setPinProtected(false)
+                                    collectionRepository.reset()
                                     UtxoMetaUtil.clearAll()
                                     SentinelTorManager.stop()
                                 }
@@ -309,6 +313,9 @@ class MainSettingsFragment : PreferenceFragmentCompat() {
                         prefsUtil.pinHash = ""
                         prefsUtil.pinEnabled = false
                         accessFactory.pin = ""
+                        // Must be cleared BEFORE sync(), otherwise the payload writer
+                        // refuses to rewrite the (now intentionally) plaintext file.
+                        accessFactory.setPinProtected(false)
                         accessFactory.reset()
                         dojoUtility.store()
                         collectionRepository.sync()
@@ -338,7 +345,9 @@ class MainSettingsFragment : PreferenceFragmentCompat() {
                 prefsUtil.pinHash = hash.toString()
                 accessFactory.setIsLoggedIn(true)
                 accessFactory.pin = pin
+                accessFactory.setPinProtected(true)
                 dojoUtility.store()
+                // Re-encrypt the payload under the new PIN.
                 collectionRepository.sync()
             }
             withContext(Dispatchers.Main) {

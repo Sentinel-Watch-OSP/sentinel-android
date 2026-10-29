@@ -21,8 +21,7 @@ import com.samourai.sentinel.ui.collectionDetails.send.SendFragment
 import com.samourai.sentinel.ui.collectionDetails.transactions.TransactionsFragment
 import com.samourai.sentinel.ui.utils.showFloatingSnackBar
 import com.samourai.wallet.util.XPUB
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.java.KoinJavaComponent.inject
@@ -134,7 +133,7 @@ class CollectionDetailsActivity : SentinelActivity(), TransactionsFragment.OnTab
         })
 
         binding.fragmentHostContainerPager.visibility = View.INVISIBLE
-        GlobalScope.launch(Dispatchers.Main) {
+        lifecycleScope.launch {
             delay(1)
             binding.fragmentHostContainerPager.setCurrentItem(1, false)
             binding.fragmentHostContainerPager.visibility = View.VISIBLE

@@ -28,13 +28,15 @@ import com.samourai.sentinel.databinding.LayoutBroadcastBottomSheetBinding
 import com.samourai.sentinel.ui.SentinelActivity
 import com.samourai.sentinel.ui.settings.ImportBackUpActivity
 import com.samourai.sentinel.ui.utils.AndroidUtil
+import com.samourai.sentinel.ui.utils.PermissionResult
+import com.samourai.sentinel.ui.utils.permissionResultOf
 import com.samourai.sentinel.ui.views.SuccessfulBottomSheet
 import com.samourai.wallet.psbt.PSBT
 import com.sparrowwallet.hummingbird.registry.CryptoPSBT
 import com.sparrowwallet.hummingbird.registry.RegistryType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -173,12 +175,13 @@ class BroadcastTx : SentinelActivity() {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        if (requestCode == Companion.CAMERA_PERMISSION && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            scanTx()
-        } else {
-            if (requestCode == Companion.CAMERA_PERMISSION && grantResults[0] == PackageManager.PERMISSION_DENIED) {
+        // NOTE: grantResults can be EMPTY when the dialog is cancelled - never index it directly.
+        if (requestCode != Companion.CAMERA_PERMISSION) return
+        when (permissionResultOf(grantResults)) {
+            PermissionResult.GRANTED -> scanTx()
+            PermissionResult.DENIED ->
                 Toast.makeText(this, "Camera Permission Denied", Toast.LENGTH_LONG).show()
-            }
+            PermissionResult.CANCELLED -> Unit
         }
     }
 
@@ -304,7 +307,7 @@ class ScanTxFragment : BottomSheetDialogFragment() {
         mCodeScanner.setLifeCycleOwner(this)
 
         mCodeScanner.setQRDecodeListener {
-            GlobalScope.launch(Dispatchers.Main) {
+            lifecycleScope.launch {
                     onScan(it)
             }
         }

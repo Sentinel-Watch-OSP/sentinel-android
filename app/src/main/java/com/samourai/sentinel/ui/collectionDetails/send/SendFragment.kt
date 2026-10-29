@@ -42,6 +42,8 @@ import com.samourai.sentinel.ui.SentinelActivity
 import com.samourai.sentinel.ui.broadcast.BroadcastTx
 import com.samourai.sentinel.ui.fragments.AddNewPubKeyBottomSheet
 import com.samourai.sentinel.ui.utils.AndroidUtil
+import com.samourai.sentinel.ui.utils.PermissionResult
+import com.samourai.sentinel.ui.utils.permissionResultOf
 import com.samourai.sentinel.ui.utils.hideKeyboard
 import com.samourai.sentinel.ui.views.codeScanner.CameraFragmentBottomSheet
 import com.samourai.sentinel.util.FormatsUtil
@@ -311,29 +313,29 @@ class SendFragment : Fragment() {
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        if (requestCode == SentinelActivity.CAMERA_PERMISSION && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            val camera = CameraFragmentBottomSheet()
-            camera.setQrCodeScanLisenter {
-                if (it.length < 100) {
-                    fragmentSpendBinding.btcAddress.setText(it)
-                }
-                camera.dismiss()
-            }
-            camera.show(parentFragmentManager, camera.tag)
-
-        } else {
-            if (requestCode == SentinelActivity.CAMERA_PERMISSION && grantResults[0] == PackageManager.PERMISSION_DENIED) {
+        // NOTE: grantResults can be EMPTY when the dialog is cancelled - never index it directly.
+        if (requestCode != SentinelActivity.CAMERA_PERMISSION) return
+        when (permissionResultOf(grantResults)) {
+            PermissionResult.GRANTED -> showAddressScanner()
+            PermissionResult.DENIED -> {
                 Toast.makeText(context, "Permission denied", Toast.LENGTH_LONG).show()
-                val camera = CameraFragmentBottomSheet()
-                camera.setQrCodeScanLisenter {
-                    if (it.length < 100) {
-                        fragmentSpendBinding.btcAddress.setText(it)
-                    }
-                    camera.dismiss()
-                }
-                camera.show(parentFragmentManager, camera.tag)
+                showAddressScanner()
             }
+            PermissionResult.CANCELLED -> Unit
         }
+    }
+
+    private fun showAddressScanner() {
+        // Guard against the fragment being detached while the permission dialog was up.
+        if (!isAdded) return
+        val camera = CameraFragmentBottomSheet()
+        camera.setQrCodeScanLisenter {
+            if (it.length < 100) {
+                fragmentSpendBinding.btcAddress.setText(it)
+            }
+            camera.dismiss()
+        }
+        camera.show(parentFragmentManager, camera.tag)
     }
 
 

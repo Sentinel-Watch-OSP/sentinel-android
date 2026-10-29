@@ -20,6 +20,14 @@ buildscript {
     }
 }
 
+// KSP replaces kapt for Room annotation processing. kapt shells out to javac
+// internals (com.sun.tools.javac.*) that JDK 25+ no longer exports, which made
+// the build fail on modern JDKs. KSP does not, so the project builds on any
+// JDK from 17 upward.
+plugins {
+    id 'com.google.devtools.ksp' version "$ksp_version" apply false
+}
+
 rootProject.allprojects {
     repositories {
         maven {

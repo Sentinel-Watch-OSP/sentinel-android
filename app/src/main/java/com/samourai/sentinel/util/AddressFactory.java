@@ -12,6 +12,8 @@ import com.samourai.sentinel.core.hd.HD_WalletFactory;
 import java.io.IOException;
 import java.util.HashMap;
 
+import timber.log.Timber;
+
 public class AddressFactory {
 
     public static final int LOOKAHEAD_GAP = 20;
@@ -73,11 +75,11 @@ public class AddressFactory {
             }
         }
         catch(IOException ioe)	{
-            ioe.printStackTrace();
+            Timber.e(ioe);
             Toast.makeText(context, "HD wallet error", Toast.LENGTH_SHORT).show();
         }
         catch(MnemonicException.MnemonicLengthException mle)	{
-            mle.printStackTrace();
+            Timber.e(mle);
             Toast.makeText(context, "HD wallet error", Toast.LENGTH_SHORT).show();
         }
 
@@ -98,11 +100,11 @@ public class AddressFactory {
             }
         }
         catch(IOException ioe)	{
-            ioe.printStackTrace();
+            Timber.e(ioe);
             Toast.makeText(context, "HD wallet error", Toast.LENGTH_SHORT).show();
         }
         catch(MnemonicException.MnemonicLengthException mle)	{
-            mle.printStackTrace();
+            Timber.e(mle);
             Toast.makeText(context, "HD wallet error", Toast.LENGTH_SHORT).show();
         }
 
@@ -118,11 +120,11 @@ public class AddressFactory {
             addr = HD_WalletFactory.getInstance(context).get().getAccount(accountIdx).getChain(chain).getAddressAt(idx);
         }
         catch(IOException ioe)	{
-            ioe.printStackTrace();
+            Timber.e(ioe);
             Toast.makeText(context, "HD wallet error", Toast.LENGTH_SHORT).show();
         }
         catch(MnemonicException.MnemonicLengthException mle)	{
-            mle.printStackTrace();
+            Timber.e(mle);
             Toast.makeText(context, "HD wallet error", Toast.LENGTH_SHORT).show();
         }
 
