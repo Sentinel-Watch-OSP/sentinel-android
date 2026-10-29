@@ -305,6 +305,9 @@
     <string name="address_number1_bip44">Adresy začínající „1“ (BIP44)</string>
     <string name="address_number3_bip49">Adresy začínající „3“ (BIP49)</string>
     <string name="address_starting_bc_bip84">Adresy začínající „bc1q“ (BIP84)</string>
+    <string name="address_starting_mn_bip44">Adresy začínající „m" nebo „n" (BIP44)</string>
+    <string name="address_number2_bip49">Adresy začínající „2" (BIP49)</string>
+    <string name="address_starting_tb_bip84">Adresy začínající „tb1q" (BIP84)</string>
     <string name="request_amount">Vyžádat částku</string>
     <string name="path">Cesta</string>
     <string name="advanced">Pokročilé</string>

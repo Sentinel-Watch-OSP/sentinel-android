@@ -46,8 +46,6 @@ android {
         release {
             minifyEnabled false
         }
-        applicationVariants {
-        }
     }
 
     compileOptions {

@@ -431,6 +431,12 @@ class SelectAddressTypeFragment : Fragment() {
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
 
+        if (SentinelState.isTestNet()) {
+            binding.buttonBIP44.text = getString(R.string.address_starting_mn_bip44)
+            binding.buttonBIP49.text = getString(R.string.address_number2_bip49)
+            binding.buttonBIP84.text = getString(R.string.address_starting_tb_bip84)
+        }
+
         binding.radioGroup.setOnCheckedChangeListener { radioGroup, i ->
             when (i) {
                 0 -> {

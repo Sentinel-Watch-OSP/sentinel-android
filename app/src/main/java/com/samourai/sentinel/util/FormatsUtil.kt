@@ -84,9 +84,9 @@ class FormatsUtil private constructor() {
                 uri = BitcoinURI(s)
                 ret = uri.address.toString()
             } catch (bupe: BitcoinURIParseException) {
-                if (s.toLowerCase().matches(Regex(URI_BECH32_LOWER))) {
+                if (s.lowercase().matches(Regex(URI_BECH32_LOWER))) {
                     val pattern = Pattern.compile(URI_BECH32_LOWER)
-                    val matcher = pattern.matcher(s.toLowerCase())
+                    val matcher = pattern.matcher(s.lowercase())
                     if (matcher.find() && matcher.group(1) != null) {
                         return matcher.group(1)
                     }
@@ -108,9 +108,9 @@ class FormatsUtil private constructor() {
                     "0.0000"
                 }
             } catch (bupe: BitcoinURIParseException) {
-                if (s.toLowerCase().matches(Regex(URI_BECH32_LOWER))) {
+                if (s.lowercase().matches(Regex(URI_BECH32_LOWER))) {
                     val pattern = Pattern.compile(URI_BECH32_LOWER)
-                    val matcher = pattern.matcher(s.toLowerCase())
+                    val matcher = pattern.matcher(s.lowercase())
                     if (matcher.find() && matcher.group(4) != null) {
                         val amt = matcher.group(4)
                         ret = try {
@@ -129,7 +129,7 @@ class FormatsUtil private constructor() {
         fun isValidBitcoinAddress(address: String): Boolean {
             var ret = false
             var addr: Address? = null
-            if (address.toLowerCase().startsWith("bc") || address.toLowerCase().startsWith("tb")) {
+            if (address.lowercase().startsWith("bc") || address.lowercase().startsWith("tb")) {
                 try {
                     val pair = Bech32Segwit.decode(address.substring(0, 2), address)
                     if (pair.left == null || pair.right == null) {

@@ -311,6 +311,9 @@
     <string name="address_number1_bip44">Addresses starting with \"1\" (BIP44)</string>
     <string name="address_number3_bip49">Addresses starting with \"3\" (BIP49)</string>
     <string name="address_starting_bc_bip84">Addresses starting with \"bc1q\" (BIP84)</string>
+    <string name="address_starting_mn_bip44">Addresses starting with \"m\" or \"n\" (BIP44)</string>
+    <string name="address_number2_bip49">Addresses starting with \"2\" (BIP49)</string>
+    <string name="address_starting_tb_bip84">Addresses starting with \"tb1q\" (BIP84)</string>
     <string name="request_amount">Request Amount</string>
     <string name="path">Path</string>
     <string name="advanced">Advanced</string>
