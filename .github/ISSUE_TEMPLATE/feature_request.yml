@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest something Sentinel should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sentinel is a small, watch-only wallet maintained by volunteers. Ideas
+        that fit that are the most likely to happen: better ways to watch, read
+        or receive, and anything that reduces what a backend or the phone can
+        learn about you. Features that would need Sentinel to hold private keys
+        are out of scope by design.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and what gets in the way today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: How you imagine it working. Rough is fine.
+    validations:
+      required: true
+
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy
+      description: Would this send anything new to a Dojo or another server, or store anything new on the phone? "No" or "not sure" are fine answers.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other ways you have tried, or other wallets that do this well.

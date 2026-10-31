@@ -1,0 +1,95 @@
+name: Bug report
+description: Something in Sentinel does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. A few things before you start:
+
+        - **Security problems do not belong here.** If the bug could leak what
+          you watch, show a wrong receive address, or get around the PIN, use
+          [private vulnerability reporting](https://github.com/ORG/sentinel-android/security/advisories/new) instead.
+        - **Never paste an XPUB, YPUB, ZPUB, address, Dojo pairing code or API
+          key** into an issue, or a screenshot showing one. Issues are public
+          and permanent. Blur or crop them out.
+        - Sentinel is only published on GitHub. If you installed it from
+          anywhere else, please reinstall from the
+          [releases page](https://github.com/ORG/sentinel-android/releases/latest) first.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected to see instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest sequence that shows the problem.
+      placeholder: |
+        1. Open Sentinel
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Sentinel version
+      description: Settings → About. Say if it is Sentinel Beta.
+      placeholder: "5.1.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - Obtainium
+        - APK downloaded from GitHub Releases
+        - Built from source
+        - Other (please say below)
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Phone and Android version
+      placeholder: "Pixel 7, Android 14 (GrapheneOS)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend
+      description: What Sentinel is paired with.
+      options:
+        - My own Dojo
+        - Someone else's Dojo
+        - Not paired
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tor
+    attributes:
+      label: Tor
+      options:
+        - On
+        - Off
+        - Not sure
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything else
+      description: Error messages, screenshots (with keys and addresses removed), or whether it worked in an earlier version.
