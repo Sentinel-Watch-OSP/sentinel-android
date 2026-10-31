@@ -1,0 +1,10 @@
+# Blank issues are off so that every report starts from a template that warns
+# against pasting keys and addresses. Maintainers can still open blank issues.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/ORG/sentinel-android/security/advisories/new
+    about: Anything that could leak what you watch, show a wrong address or bypass the PIN. Please do not open a public issue.
+  - name: Sentinel website and documentation
+    url: https://sentinel.watch
+    about: How to install, pair with a Dojo, and verify a download.
